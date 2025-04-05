@@ -1,182 +1,101 @@
-import { useState, useEffect, useRef } from 'react';
-import { startCVSession, sendCVMessage, generatePDF } from '../../../services/api/api.jsx';
-import PDFPreview from '../../server/pdfGenerator/pdfPreview.jsx';
+import { useState } from 'react';
 
-const CVGenerator = () => {
-  const [sessionId, setSessionId] = useState(null);
-  const [conversation, setConversation] = useState([]);
-  const [input, setInput] = useState('');
-  const [status, setStatus] = useState('active'); // Start as active by default
-  const [pdfUrl, setPdfUrl] = useState(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const messagesEndRef = useRef(null);
-
-  // Initialize the CV session automatically
-  useEffect(() => {
-    const initializeSession = async () => {
-      try {
-        setIsLoading(true);
-        const response = await startCVSession();
-        console.log('API Response:', response);
-        
-        const session_id = response.session_id || response.sessionId;
-        const message = response.message || response.initial_message;
-        
-        if (!session_id || !message) {
-          throw new Error('Invalid response format');
-        }
-        
-        setSessionId(session_id);
-        setConversation([{ role: 'assistant', content: message }]);
-      } catch (error) {
-        console.error('Error starting session:', error);
-        setConversation([{
-          role: 'assistant',
-          content: 'Failed to initialize CV session. Please refresh the page.'
-        }]);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    initializeSession();
-  }, []); // Empty dependency array means this runs once on mount
-
-  // Send message to backend
-  const handleSend = async () => {
-    if (!input.trim() || isLoading) return;
-    
-    try {
-      setIsLoading(true);
-      // Add user message
-      const userMessage = { role: 'user', content: input };
-      setConversation(prev => [...prev, userMessage]);
-      setInput('');
-      
-      // Get AI response
-      const { message, status: newStatus } = await sendCVMessage(sessionId, input);
-      setConversation(prev => [...prev, { role: 'assistant', content: message }]);
-      setStatus(newStatus);
-    } catch (error) {
-      console.error('Error sending message:', error);
-      setConversation(prev => [...prev, { 
-        role: 'assistant', 
-        content: 'Error processing your message. Please try again.' 
-      }]);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Generate PDF when CV is complete
-  const handleGeneratePDF = async () => {
-    try {
-      setIsLoading(true);
-      const pdfBlob = await generatePDF(sessionId);
-      const url = URL.createObjectURL(pdfBlob);
-      setPdfUrl(url);
-    } catch (error) {
-      console.error('Error generating PDF:', error);
-      setConversation(prev => [...prev, { 
-        role: 'assistant', 
-        content: 'Failed to generate PDF. Please try again.' 
-      }]);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Auto-scroll to bottom of conversation
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [conversation]);
-
+export default function Login() {
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
-      <div className="max-w-4xl mx-auto px-4">
-        <header className="mb-8 text-center">
-          <h1 className="text-3xl font-bold text-blue-600">AI CV Generator</h1>
-          <p className="text-gray-600 mt-2">
-            The assistant will guide you through creating your CV
-          </p>
-        </header>
+    <div className="min-h-screen bg-gradient-to-r from-indigo-1000 to-indigo-800 flex items-center justify-center py-12 px-6 sm:px-8">
+      <div className="bg-white w-full max-w-md p-8 rounded-lg shadow-lg text-center">
+        {/* 1. Logo */}
+        <div className="flex justify-center mb-6">
+          <img
+            className="h-16 w-auto"
+            src="https://i.postimg.cc/QdmXH1bV/logoCV.png"
+            alt="Logo CVClean"
+          />
+        </div>
 
-        <div className="bg-white rounded-lg shadow-md overflow-hidden">
-          {/* Conversation Panel */}
-          <div className="p-6 border-b">
-            <div className="h-96 overflow-y-auto mb-4 space-y-4">
-              {conversation.length === 0 && isLoading ? (
-                <div className="text-center py-8">
-                  <p className="text-gray-500">Initializing CV assistant...</p>
-                </div>
-              ) : (
-                conversation.map((msg, idx) => (
-                  <div
-                    key={idx}
-                    className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                  >
-                    <div
-                      className={`max-w-3/4 rounded-lg px-4 py-2 ${
-                        msg.role === 'user'
-                          ? 'bg-blue-500 text-white'
-                          : 'bg-gray-100 text-gray-800'
-                      }`}
-                    >
-                      <p className="whitespace-pre-wrap">{msg.content}</p>
-                    </div>
-                  </div>
-                ))
-              )}
-              <div ref={messagesEndRef} />
-            </div>
+        {/* 2. Título */}
+        <h2 className="text-2xl font-extrabold text-gray-900 mb-6">
+          Inicia sesión en tu cuenta
+        </h2>
 
-            {/* Input Area - Always visible except when generating PDF */}
-            {status !== 'completed' && (
-              <div className="flex space-x-2">
-                <input
-                  type="text"
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && handleSend()}
-                  className="flex-1 border rounded px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Type your response..."
-                  disabled={isLoading}
-                />
-                <button
-                  onClick={handleSend}
-                  className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700 transition"
-                  disabled={isLoading}
-                >
-                  {isLoading ? 'Sending...' : 'Send'}
-                </button>
-              </div>
-            )}
-
-            {/* Completion Actions */}
-            {status === 'completed' && (
-              <div className="flex justify-center">
-                <button
-                  onClick={handleGeneratePDF}
-                  className="bg-blue-600 text-white px-6 py-3 rounded hover:bg-blue-700 transition"
-                  disabled={isLoading}
-                >
-                  {isLoading ? 'Generating...' : 'Download PDF'}
-                </button>
-              </div>
-            )}
+        {/* 3. Formulario */}
+        <form className="space-y-4 text-left">
+          {/* 3.1 Correo electrónico */}
+          <div>
+            <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
+              Correo electrónico
+            </label>
+            <input
+              type="email"
+              id="email"
+              className="block w-full px-4 py-2 text-gray-900 rounded-md border border-gray-300 focus:ring-indigo-500 focus:border-indigo-500 focus:outline-none sm:text-sm"
+              required
+            />
           </div>
 
-          {/* PDF Preview */}
-          {pdfUrl && (
-            <div className="p-6">
-              <h2 className="text-xl font-semibold mb-4">Your CV Preview</h2>
-              <PDFPreview pdfUrl={pdfUrl} />
-            </div>
-          )}
+          {/* 3.2 Contraseña */}
+          <div>
+            <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
+              Contraseña
+            </label>
+            <input
+              type="password"
+              id="password"
+              className="block w-full px-4 py-2 text-gray-900 rounded-md border border-gray-300 focus:ring-indigo-500 focus:border-indigo-500 focus:outline-none sm:text-sm"
+              required
+            />
+          </div>
+
+          {/* 3.3 ¿Olvidaste tu contraseña? */}
+          <div className="text-right">
+            <a href="#" className="text-xs text-indigo-600 hover:text-indigo-500">
+              ¿Olvidaste tu contraseña?
+            </a>
+          </div>
+
+          {/* 3.4 Botón Iniciar sesión */}
+          <button
+            type="submit"
+            className="w-full py-2 px-4 text-sm font-semibold text-white bg-indigo-600 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+          >
+            Iniciar sesión
+          </button>
+        </form>
+
+        {/* 4. Separador "O" */}
+        <div className="my-6 flex items-center">
+          <div className="flex-grow border-t border-gray-300"></div>
+          <span className="mx-3 text-sm text-gray-500">O</span>
+          <div className="flex-grow border-t border-gray-300"></div>
+        </div>
+
+        {/* 5. Continuar con Google */}
+        <button
+          className="w-full max-w-xs mx-auto mb-6 flex items-center justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+        >
+          <img
+            src="https://th.bing.com/th/id/OIP.CKotJtDeqttVnWArF1l3QQHaHl?rs=1&pid=ImgDetMain"
+            alt="Google Logo"
+            className="h-5 w-5 mr-2"
+          />
+          Continuar con Google
+        </button>
+
+        {/* 6. Línea separación */}
+        <div className="border-t border-gray-200 my-4"></div>
+
+        {/* 7. Registro */}
+        <div className="mt-4">
+          <p className="text-sm text-gray-500">
+            ¿No tienes una cuenta?
+          </p>
+          <button
+            className="mt-2 text-sm font-semibold text-indigo-600 hover:text-indigo-500"
+          >
+            Regístrate gratis
+          </button>
         </div>
       </div>
     </div>
   );
-};
-
-export default CVGenerator;
+}
